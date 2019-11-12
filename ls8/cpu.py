@@ -7,29 +7,100 @@ class CPU:
 
     def __init__(self):
         """Construct a new CPU."""
-        pass
+        self.reg = [0] * 8
+        self.ram = [0] * 256
+        # Program Counter
+        self.pc = 0  
+        self.operations = {
+            "LDI": 0b10000010,
+            "HLT": 0b00000001,
+            "PRN": 0b01000111,
+            "ADD": 0b10100000,
+            "MUL": 0b10100010,
+            "PUSH": 0b01000101,
+            "POP": 0b01000110,
+        }
+        self.sp = 0xF4
+        # Instruction Register
+        self.ir = 0  
+        # Memory Address Register
+        self.mar = 0  
+        # Memory Data Register
+        self.mdr = 0  
+        # Flags (H0000LGE) - h = "halt", l = "<", G = ">", E = "="
+        self.flags = 0  
+        # Interrupt Mask
+        self.reg[0b101] = 0b11111111  
+        # Stack Pointer
+        self.reg[0b111] = 0b11110011  
 
-    def load(self):
+        '''
+        Register map:
+        +-----------------------+
+        | R0                     |
+        | R1                     |
+        | R2                     |
+        | R3                     |
+        | R4                     |
+        | R5 Interrupt Mask      |
+        | R6 Interrupt Status    |
+        | R7 Stack Pointer       |
+        +-----------------------+
+
+        Memory map:
+        Top of RAM
+        +-----------------------+
+        | FF  I7 vector         |    Interrupt vector table
+        | FE  I6 vector         |
+        | FD  I5 vector         |
+        | FC  I4 vector         |
+        | FB  I3 vector         |
+        | FA  I2 vector         |
+        | F9  I1 vector         |
+        | F8  I0 vector         |
+        | F7  Reserved          |
+        | F6  Reserved          |
+        | F5  Reserved          |
+        | F4  Key pressed       |    Holds the most recent key pressed on the keyboard
+        | F3  Start of Stack    |
+        | F2  [more stack]      |    Stack grows down
+        | ...                   |
+        | 01  [more program]    |
+        | 00  Program entry     |    Program loaded upward in memory starting at 0
+        +-----------------------+
+    Bottom of RAM
+
+        '''
+
+    def ram_read(self, MAR):
+        return self.ram[MAR]
+        
+
+    def ram_write(self, MAR, MDR):
+        self.ram[MAR] = MDR
+
+
+    def load(self, filename):
         """Load a program into memory."""
 
-        address = 0
+        try:
+            address = 0
 
-        # For now, we've just hardcoded a program:
+            with open(filename) as f:
+                for line in f:
+                    comment_split = line.split("#")
+                    num = comment_split[0].strip()
 
-        program = [
-            # From print8.ls8
-            0b10000010, # LDI R0,8
-            0b00000000,
-            0b00001000,
-            0b01000111, # PRN R0
-            0b00000000,
-            0b00000001, # HLT
-        ]
+                    try:
+                        val = int(num, 2)
+                    except ValueError:
+                        continue
+                    self.ram[address] = val
+                    address += 1
 
-        for instruction in program:
-            self.ram[address] = instruction
-            address += 1
-
+        except FileNotFoundError:
+            print(f"{sys.argv[0]}: {sys.argv[1]} not found")
+            sys.exit(2)
 
     def alu(self, op, reg_a, reg_b):
         """ALU operations."""
@@ -62,4 +133,41 @@ class CPU:
 
     def run(self):
         """Run the CPU."""
-        pass
+        halted = False
+
+        while not halted:
+            IR = self.ram[self.pc]
+            operand_a = self.ram_read(self.pc + 1)
+            operand_b = self.ram_read(self.pc + 2)
+
+        if IR == self.operations["LDI"]:
+            self.reg[operand_a] = operand_b
+            self.pc += 3
+
+        elif IR == self.operations["PRN"]:
+            print(self.reg[operand_a])
+            self.pc += 2
+
+        elif IR == self.operations["HLT"]:
+            halted = True
+
+        else:
+                print(f"Unknown instruction at index {self.pc}")
+                sys.exit(1)
+
+'''
+            if IR == opcode.LDI.code:
+                register = operand_a
+                value = operand_b
+                self.pc += 3
+
+            elif IR == opcode.NOP.code:
+                self.pc += 1
+
+            elif: IR == opcode.PRN.code:
+                self.pc += 2
+
+            else:
+                print(f"Unknown instruction at index {self.pc}")
+                self.pc += 1
+'''
