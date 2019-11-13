@@ -19,20 +19,9 @@ class CPU:
             "MUL": 0b10100010,
             "PUSH": 0b01000101,
             "POP": 0b01000110,
+            "NOP": 0b00000000,
         }
         self.sp = 0xF4
-        # Instruction Register
-        self.ir = 0  
-        # Memory Address Register
-        self.mar = 0  
-        # Memory Data Register
-        self.mdr = 0  
-        # Flags (H0000LGE) - h = "halt", l = "<", G = ">", E = "="
-        self.flags = 0  
-        # Interrupt Mask
-        self.reg[0b101] = 0b11111111  
-        # Stack Pointer
-        self.reg[0b111] = 0b11110011  
 
         '''
         Register map:
@@ -80,59 +69,34 @@ class CPU:
         self.ram[MAR] = MDR
 
 
-    def load(self, filename):
-        """Load a program into memory."""
+    def load(self):
+#        """Load a program into memory."""
 
-        address = 0
+            address = 0
 
-        if len(sys.argv) != 2:
-            print("usage: ls8.py filename")
-            sys.exit(1)
+            if len(sys.argv) != 2:
+                print("usage: ls8.py filename")
+                sys.exit(1)
 
-        prog = sys.argv[1]
+            with open(sys.argv[1]) as f:
+                for line in f:
 
-        with open(prog) as f:
-            for line in f:
-                print(line)
-                line = line.split("#")[0]
-                print(f" first exe {line}")
-                line = line.strip() # lose whitespace
-                print(f" second exe {line}")
+                    line = line.split("#")[0]
+                    line = line.strip()
 
-                if line == "":
-                    continue
-
-                val = int(line, 2) # LS-8 uses base 2!
-                print(val)
-
-                self.ram[address] = val
-                address +=1
-
-#        try:
-#            address = 0
-
-#            with open(filename) as f:
-#                for line in f:
-#                    comment_split = line.split("#")
-#                    num = comment_split[0].strip()
-
-#                    try:
-#                        val = int(num, 2)
-#                    except ValueError:
-#                        continue
-#                    self.ram[address] = val
-#                    address += 1
-
-#        except FileNotFoundError:
-#            print(f"{sys.argv[0]}: {sys.argv[1]} not found")
-#            sys.exit(2)
+                    if line == "":
+                        continue
+                    val = int(line, 2)
+                    self.ram[address] = val
+                    address += 1
 
     def alu(self, op, reg_a, reg_b):
         """ALU operations."""
 
         if op == "ADD":
             self.reg[reg_a] += self.reg[reg_b]
-        #elif op == "SUB": etc
+        elif op == self.operations["MUL"]:
+           self.reg[reg_a] *= self.reg[reg_b]
         else:
             raise Exception("Unsupported ALU operation")
 
@@ -159,37 +123,40 @@ class CPU:
     def run(self):
         """Run the CPU."""
         halted = False
-
+        
         while not halted:
             IR = self.ram[self.pc]
             operand_a = self.ram_read(self.pc + 1)
             operand_b = self.ram_read(self.pc + 2)
 
-        if IR == self.operations["LDI"]:
-            self.reg[operand_a] = operand_b
-            self.pc += 3
+            if IR == self.operations["LDI"]:
+                self.reg[operand_a] = operand_b
+                self.pc += 3
+                
+            elif IR == self.operations["PRN"]:
+                if IR == self.operations["NOP"]:
+                    self.pc += 1
+                value = int(self.reg[operand_a])
+                print(f"{value}")
+                self.pc += 2
 
-        elif IR == self.operations["PRN"]:
-            print(self.reg[operand_a])
-            self.pc += 2
+            elif IR == self.operations["HLT"]:
+                halted = True
 
-        elif IR == self.operations["HLT"]:
-            halted = True
+            elif IR == self.operations["MUL"]:
+                self.alu(self.operations["MUL"], operand_a, operand_b)
+                self.pc += 3
 
-        elif IR == self.operations["MUL"]:
-            self.alu(self.operations["MUL"], operand_a, operand_b)
-            self.pc += 2
+            elif IR == self.operations["PUSH"]:
+                self.sp = (self.sp-1) & 0xFF
+                self.ram[self.sp] = self.reg[operand_a]
+                self.pc += 2
 
-        elif IR == self.operations["PUSH"]:
-            self.sp = (self.sp-1) & 0xFF
-            self.ram[self.sp] = self.reg[operand_a]
-            self.pc += 2
+            elif IR == self.operations["POP"]:
+                self.reg[operand_a] = self.ram[self.sp]
+                self.sp = (self.sp + 1) & 0xFF
+                self.pc += 2
 
-        elif IR == self.operations["POP"]:
-            self.reg[operand_a] = self.ram[self.sp]
-            self.sp = (self.sp + 1) & 0xFF
-            self.pc += 2
-
-        else:
+            else:
                 print(f"Unknown instruction at index {self.pc}")
-                sys.exit(1)
+                self.pc += 1
